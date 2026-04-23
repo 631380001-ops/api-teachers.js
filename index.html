@@ -34,13 +34,21 @@ th{background:#fafafa;font-weight:600;}
 .view-tabs{display:flex;gap:5px;margin-bottom:15px;}
 .view-tabs button{padding:8px 16px;background:#f0f0f0;border:none;border-radius:6px;cursor:pointer;font-size:13px;}
 .view-tabs button.active{background:#1890ff;color:white;}
-.checked{background:#52c41a;color:white;}
+.cell-available{background:#52c41a;color:white;text-align:center;cursor:pointer;}
+.cell-scheduled{background:#ff4d4f;color:white;text-align:center;cursor:pointer;}
+.cell-empty{background:#f5f5f5;text-align:center;cursor:pointer;}
 .stats{display:flex;gap:15px;margin-bottom:15px;flex-wrap:wrap;}
 .stat-card{background:#fafafa;padding:12px 20px;border-radius:8px;flex:1;min-width:120px;}
 .stat-card h3{font-size:12px;color:#999;margin-bottom:5px;}
 .stat-card .num{font-size:20px;font-weight:600;color:#333;}
 .export-btn{background:#52c41a!important;color:white;}
 .loading{text-align:center;padding:40px;color:#999;}
+.legend{display:flex;gap:20px;margin-bottom:15px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:13px;color:#666;}
+.legend-color{width:16px;height:16px;border-radius:3px;}
+.legend-color.green{background:#52c41a;}
+.legend-color.red{background:#ff4d4f;}
+.legend-color.gray{background:#f0f0f0;border:1px solid #ddd;}
 </style>
 </head>
 <body>
@@ -75,6 +83,11 @@ th{background:#fafafa;font-weight:600;}
 <button class="active" onclick="switchView('date')">按日期</button>
 <button onclick="switchView('teacher')">按老师</button>
 <button onclick="switchView('week')">按周汇总</button>
+</div>
+<div class="legend">
+<div class="legend-item"><div class="legend-color gray"></div><span>不可排课</span></div>
+<div class="legend-item"><div class="legend-color green"></div><span>可排课</span></div>
+<div class="legend-item"><div class="legend-color red"></div><span>已排课</span></div>
 </div>
 <div class="controls">
 <div id="dateControls">
@@ -114,7 +127,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
 });
 async function loadTeachersFromAPI(){
   try{
-    const r=await fetch(API_BASE+"/api/teachers");
+    const r=await fetch(API_BASE+'/api/teachers');
     const d=await r.json();
     if(d.code===0){
       const list=document.getElementById('teacherList');
@@ -138,10 +151,15 @@ async function loadTeachersFromAPI(){
 }
 async function loadAllRecords(){
   try{
-    const r=await fetch(API_BASE+"/api/schedule");
+    const r=await fetch(API_BASE+'/api/schedule');
     const d=await r.json();
     if(d.code===0){
-      allRecords=d.data.items.map(item=>item.fields);
+      allRecords=d.data.items.map(item=>({
+        teacher:item.fields['老师姓名'],
+        date:item.fields['日期'],
+        slot:item.fields['时段'],
+        status:item.fields['状态']||'可排课'
+      }));
       document.getElementById('viewStatus').style.display='none';
     }
   }catch(e){}
@@ -186,29 +204,61 @@ async function addTeacher(){
   if(phone.length!==11)return alert('请输入正确的11位手机号');
   const pwd=phone.slice(-6);
   try{
-    const r=await fetch(API_BASE+"/api/teacher-manage",{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone,password:pwd})});
+    const r=await fetch(API_BASE+'/api/teacher-manage',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,phone,password:pwd})
+    });
     const d=await r.json();
-    if(d.code===0){alert('添加成功！初始密码：'+pwd);document.getElementById('name').value='';document.getElementById('phone').value='';loadTeachersFromAPI();}
-    else{alert('添加失败：'+d.msg);}
-  }catch(e){alert('网络错误：'+e.message);}
+    if(d.code===0){
+      alert('添加成功！初始密码：'+pwd);
+      document.getElementById('name').value='';
+      document.getElementById('phone').value='';
+      loadTeachersFromAPI();
+    }else{
+      alert('添加失败：'+d.msg);
+    }
+  }catch(e){
+    alert('网络错误：'+e.message);
+  }
 }
 async function resetPwd(recordId,phone){
   const newPwd=phone.slice(-6);
   try{
-    const r=await fetch(API_BASE+"/api/teacher-manage",{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({recordId,password:newPwd})});
+    const r=await fetch(API_BASE+'/api/teacher-manage',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({recordId,password:newPwd})
+    });
     const d=await r.json();
-    if(d.code===0){alert('密码已重置为：'+newPwd);loadTeachersFromAPI();}
-    else{alert('重置失败：'+d.msg);}
-  }catch(e){alert('网络错误：'+e.message);}
+    if(d.code===0){
+      alert('密码已重置为：'+newPwd);
+      loadTeachersFromAPI();
+    }else{
+      alert('重置失败：'+d.msg);
+    }
+  }catch(e){
+    alert('网络错误：'+e.message);
+  }
 }
 async function delTeacher(recordId){
   if(!confirm('确定删除这位老师？'))return;
   try{
-    const r=await fetch(API_BASE+"/api/teacher-manage",{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({recordId})});
+    const r=await fetch(API_BASE+'/api/teacher-manage',{
+      method:'DELETE',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({recordId})
+    });
     const d=await r.json();
-    if(d.code===0){alert('删除成功');loadTeachersFromAPI();}
-    else{alert('删除失败：'+d.msg);}
-  }catch(e){alert('网络错误：'+e.message);}
+    if(d.code===0){
+      alert('删除成功');
+      loadTeachersFromAPI();
+    }else{
+      alert('删除失败：'+d.msg);
+    }
+  }catch(e){
+    alert('网络错误：'+e.message);
+  }
 }
 function loadViewData(){
   if(currentView==='date')loadByDate();
@@ -217,42 +267,54 @@ function loadViewData(){
 }
 function loadByDate(){
   const date=document.getElementById('selectedDate').value;
-  const records=allRecords.filter(r=>r['日期']===date);
+  const records=allRecords.filter(r=>r.date===date);
   const container=document.getElementById('scheduleTable');
   let html="<table><tr><th>时段</th>";
   teachers.forEach(t=>html+="<th>"+t+"</th>");
   html+="</tr>";
   const teacherSlots={};
   records.forEach(r=>{
-    const t=r['老师姓名'];
-    const s=r['时段'];
-    if(!teacherSlots[t])teacherSlots[t]=new Set();
-    teacherSlots[t].add(s);
+    const key=r.teacher+'-'+r.slot;
+    teacherSlots[key]=r.status;
   });
   timeSlots.forEach(slot=>{
     html+="<tr><td>"+slot+"</td>";
     teachers.forEach(t=>{
-      const checked=teacherSlots[t]&&teacherSlots[t].has(slot);
-      html+="<td class='"+(checked?'checked':'')+"'>"+(checked?'✓':'')+"</td>";
+      const key=t+'-'+slot;
+      const status=teacherSlots[key];
+      let cellClass='cell-empty';
+      let cellText='';
+      if(status==='可排课'){
+        cellClass='cell-available';
+        cellText='✓';
+      }else if(status==='已排课'){
+        cellClass='cell-scheduled';
+        cellText='✓';
+      }
+      html+="<td class='"+cellClass+"' onclick=\"toggleCell('"+t+"','"+date+"','"+slot+"','"+status+"')\">"+cellText+"</td>";
     });
     html+="</tr>";
   });
   html+="</table>";
   container.innerHTML=html;
-  const totalSlots=records.length;
-  const totalTeachers=new Set(records.map(r=>r['老师姓名'])).size;
-  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>日期</h3><div class='num'>"+date+"</div></div><div class='stat-card'><h3>可排课老师数</h3><div class='num'>"+totalTeachers+"</div></div><div class='stat-card'><h3>总时段数</h3><div class='num'>"+totalSlots+"</div></div>";
+  const availableCount=records.filter(r=>r.status==='可排课').length;
+  const scheduledCount=records.filter(r=>r.status==='已排课').length;
+  const totalTeachers=new Set(records.map(r=>r.teacher)).size;
+  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>日期</h3><div class='num'>"+date+"</div></div><div class='stat-card'><h3>可排课时段</h3><div class='num' style='color:#52c41a'>"+availableCount+"</div></div><div class='stat-card'><h3>已排课时段</h3><div class='num' style='color:#ff4d4f'>"+scheduledCount+"</div></div><div class='stat-card'><h3>填报老师数</h3><div class='num'>"+totalTeachers+"</div></div>";
 }
 function loadByTeacher(){
   const teacher=document.getElementById('selectedTeacher').value;
   const weekStart=document.getElementById('selectedWeek').value;
-  if(!teacher){document.getElementById('scheduleTable').innerHTML="<p style='color:#999;padding:20px;'>请选择老师</p>";return;}
+  if(!teacher){
+    document.getElementById('scheduleTable').innerHTML="<p style='color:#999;padding:20px;'>请选择老师</p>";
+    return;
+  }
+  const ws=new Date(weekStart);
+  const we=new Date(ws);
+  we.setDate(we.getDate()+7);
   const records=allRecords.filter(r=>{
-    if(r['老师姓名']!==teacher)return false;
-    const d=new Date(r['日期']);
-    const ws=new Date(weekStart);
-    const we=new Date(ws);
-    we.setDate(we.getDate()+7);
+    if(r.teacher!==teacher)return false;
+    const d=new Date(r.date);
     return d>=ws&&d<we;
   });
   const container=document.getElementById('scheduleTable');
@@ -260,27 +322,40 @@ function loadByTeacher(){
   let html="<table><tr><th>时段</th>";
   days.forEach(d=>html+="<th>"+d+"</th>");
   html+="</tr>";
-  const ws=new Date(weekStart);
   const daySlots={};
   records.forEach(r=>{
-    const d=new Date(r['日期']);
+    const d=new Date(r.date);
     const dayIdx=Math.floor((d-ws)/(1000*60*60*24));
     if(dayIdx>=0&&dayIdx<7){
-      if(!daySlots[dayIdx])daySlots[dayIdx]=new Set();
-      daySlots[dayIdx].add(r['时段']);
+      const key=dayIdx+'-'+r.slot;
+      daySlots[key]=r.status;
     }
   });
   timeSlots.forEach(slot=>{
     html+="<tr><td>"+slot+"</td>";
     for(let d=0;d<7;d++){
-      const checked=daySlots[d]&&daySlots[d].has(slot);
-      html+="<td class='"+(checked?'checked':'')+"'>"+(checked?'✓':'')+"</td>";
+      const key=d+'-'+slot;
+      const status=daySlots[key];
+      let cellClass='cell-empty';
+      let cellText='';
+      if(status==='可排课'){
+        cellClass='cell-available';
+        cellText='✓';
+      }else if(status==='已排课'){
+        cellClass='cell-scheduled';
+        cellText='✓';
+      }
+      const cellDate=new Date(ws);
+      cellDate.setDate(cellDate.getDate()+d);
+      html+="<td class='"+cellClass+"' onclick=\"toggleCell('"+teacher+"','"+cellDate.toISOString().split('T')[0]+"','"+slot+"','"+status+"')\">"+cellText+"</td>";
     }
     html+="</tr>";
   });
   html+="</table>";
   container.innerHTML=html;
-  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>老师</h3><div class='num'>"+teacher+"</div></div><div class='stat-card'><h3>本周时段数</h3><div class='num'>"+records.length+"</div></div>";
+  const availableCount=records.filter(r=>r.status==='可排课').length;
+  const scheduledCount=records.filter(r=>r.status==='已排课').length;
+  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>老师</h3><div class='num'>"+teacher+"</div></div><div class='stat-card'><h3>可排课时段</h3><div class='num' style='color:#52c41a'>"+availableCount+"</div></div><div class='stat-card'><h3>已排课时段</h3><div class='num' style='color:#ff4d4f'>"+scheduledCount+"</div></div>";
 }
 function loadByWeek(){
   const weekStart=document.getElementById('weekSelect').value;
@@ -288,34 +363,83 @@ function loadByWeek(){
   const we=new Date(ws);
   we.setDate(we.getDate()+7);
   const records=allRecords.filter(r=>{
-    const d=new Date(r['日期']);
+    const d=new Date(r.date);
     return d>=ws&&d<we;
   });
   const container=document.getElementById('scheduleTable');
   const days=['周一','周二','周三','周四','周五','周六','周日'];
   let html="<table><tr><th>老师</th>";
   days.forEach(d=>html+="<th>"+d+"</th>");
-  html+="<th>合计</th></tr>";
+  html+="<th>可排课</th><th>已排课</th></tr>";
   const teacherCounts={};
   records.forEach(r=>{
-    const t=r['老师姓名'];
-    if(!teacherCounts[t])teacherCounts[t]=[0,0,0,0,0,0,0];
-    const d=new Date(r['日期']);
+    const t=r.teacher;
+    if(!teacherCounts[t])teacherCounts[t]={available:[0,0,0,0,0,0,0],scheduled:[0,0,0,0,0,0,0]};
+    const d=new Date(r.date);
     const dayIdx=Math.floor((d-ws)/(1000*60*60*24));
-    if(dayIdx>=0&&dayIdx<7)teacherCounts[t][dayIdx]++;
+    if(dayIdx>=0&&dayIdx<7){
+      if(r.status==='已排课'){
+        teacherCounts[t].scheduled[dayIdx]++;
+      }else{
+        teacherCounts[t].available[dayIdx]++;
+      }
+    }
   });
   teachers.forEach(t=>{
-    const counts=teacherCounts[t]||[0,0,0,0,0,0,0];
-    const total=counts.reduce((a,b)=>a+b,0);
+    const counts=teacherCounts[t]||{available:[0,0,0,0,0,0,0],scheduled:[0,0,0,0,0,0,0]};
+    const totalAvailable=counts.available.reduce((a,b)=>a+b,0);
+    const totalScheduled=counts.scheduled.reduce((a,b)=>a+b,0);
     html+="<tr><td><strong>"+t+"</strong></td>";
-    counts.forEach(c=>html+="<td>"+c+"</td>");
-    html+="<td><strong>"+total+"</strong></td></tr>";
+    for(let d=0;d<7;d++){
+      const avail=counts.available[d];
+      const sched=counts.scheduled[d];
+      let cellText=avail+sched;
+      let cellClass='cell-empty';
+      if(sched>0){
+        cellClass='cell-scheduled';
+      }else if(avail>0){
+        cellClass='cell-available';
+      }
+      html+="<td class='"+cellClass+"'>"+cellText+"</td>";
+    }
+    html+="<td style='color:#52c41a'><strong>"+totalAvailable+"</strong></td>";
+    html+="<td style='color:#ff4d4f'><strong>"+totalScheduled+"</strong></td></tr>";
   });
   html+="</table>";
   container.innerHTML=html;
-  const totalRecords=records.length;
-  const totalTeachers=new Set(records.map(r=>r['老师姓名'])).size;
-  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>本周日期</h3><div class='num'>"+weekStart+"</div></div><div class='stat-card'><h3>填报老师数</h3><div class='num'>"+totalTeachers+"</div></div><div class='stat-card'><h3>总时段数</h3><div class='num'>"+totalRecords+"</div></div>";
+  const totalAvailable=records.filter(r=>r.status==='可排课').length;
+  const totalScheduled=records.filter(r=>r.status==='已排课').length;
+  const totalTeachers=new Set(records.map(r=>r.teacher)).size;
+  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>本周日期</h3><div class='num'>"+weekStart+"</div></div><div class='stat-card'><h3>可排课时段</h3><div class='num' style='color:#52c41a'>"+totalAvailable+"</div></div><div class='stat-card'><h3>已排课时段</h3><div class='num' style='color:#ff4d4f'>"+totalScheduled+"</div></div><div class='stat-card'><h3>填报老师数</h3><div class='num'>"+totalTeachers+"</div></div>";
+}
+async function toggleCell(teacher,date,slot,currentStatus){
+  let newStatus='';
+  if(!currentStatus){
+    newStatus='可排课';
+  }else if(currentStatus==='可排课'){
+    newStatus='已排课';
+  }else{
+    newStatus='';
+  }
+  try{
+    const r=await fetch(API_BASE+'/api/schedule',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        teacher:teacher,
+        records:newStatus?[{fields:{'老师姓名':teacher,'日期':date,'时段':slot,'状态':newStatus}}]:[]
+      })
+    });
+    const d=await r.json();
+    if(d.code===0){
+      await loadAllRecords();
+      loadViewData();
+    }else{
+      alert('操作失败：'+d.msg);
+    }
+  }catch(e){
+    alert('网络错误：'+e.message);
+  }
 }
 async function refreshAll(){
   document.getElementById('manageStatus').style.display='block';
@@ -331,7 +455,7 @@ function exportCSV(){
   const rows=table.querySelectorAll('tr');
   rows.forEach(row=>{
     const cols=row.querySelectorAll('th,td');
-    const data=Array.from(cols).map(c=>'"'+c.textContent+'"');
+    const data=Array.from(cols).map(c=>'"'+c.textContent.trim()+'"');
     csv+=data.join(',')+'\n';
   });
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
@@ -342,7 +466,7 @@ function exportCSV(){
   a.click();
 }
 function getMonday(d){const n=new Date(d),day=n.getDay();n.setDate(n.getDate()-(day===0?6:day-1));return n;}
-function formatDateInput(d){return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0');}
+function formatDateInput(d){return d.getFullYear()+"-"+(d.getMonth()+1).toString().padStart(2,'0')+"-"+d.getDate().toString().padStart(2,'0');}
 </script>
 </body>
 </html>
