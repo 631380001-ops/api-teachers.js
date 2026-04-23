@@ -19,13 +19,16 @@ async function getFeishuToken() {
   return data.code === 0 ? data.tenant_access_token : null;
 }
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+exports.handler = async (event, context) => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  };
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
   }
 
   try {
@@ -37,8 +40,8 @@ export default async function handler(req, res) {
       }
     );
     const data = await response.json();
-    res.json(data);
+    return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
-}
+};
