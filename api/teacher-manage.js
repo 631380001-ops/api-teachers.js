@@ -19,20 +19,24 @@ async function getFeishuToken() {
   return data.code === 0 ? data.tenant_access_token : null;
 }
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+exports.handler = async (event, context) => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json'
+  };
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
   }
 
   try {
     const token = await getFeishuToken();
+    const body = JSON.parse(event.body || '{}');
 
-    if (req.method === 'POST') {
-      const { name, phone, password } = req.body;
+    if (event.httpMethod === 'POST') {
+      const { name, phone, password } = body;
       const response = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${FEISHU_CONFIG.APP_TOKEN}/tables/${FEISHU_CONFIG.TEACHER_TABLE}/records`,
         {
@@ -51,9 +55,9 @@ export default async function handler(req, res) {
         }
       );
       const data = await response.json();
-      res.json(data);
-    } else if (req.method === 'PUT') {
-      const { recordId, password } = req.body;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    } else if (event.httpMethod === 'PUT') {
+      const { recordId, password } = body;
       const response = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${FEISHU_CONFIG.APP_TOKEN}/tables/${FEISHU_CONFIG.TEACHER_TABLE}/records/${recordId}`,
         {
@@ -70,9 +74,9 @@ export default async function handler(req, res) {
         }
       );
       const data = await response.json();
-      res.json(data);
-    } else if (req.method === 'DELETE') {
-      const { recordId } = req.body;
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
+    } else if (event.httpMethod === 'DELETE') {
+      const { recordId } = body;
       const response = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${FEISHU_CONFIG.APP_TOKEN}/tables/${FEISHU_CONFIG.TEACHER_TABLE}/records/${recordId}`,
         {
@@ -83,9 +87,9 @@ export default async function handler(req, res) {
         }
       );
       const data = await response.json();
-      res.json(data);
+      return { statusCode: 200, headers, body: JSON.stringify(data) };
     }
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    return { statusCode: 500, headers, body: JSON.stringify({ error: error.message }) };
   }
-}
+};
