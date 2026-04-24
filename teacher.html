@@ -235,6 +235,15 @@ async function showMainPage(){
   document.getElementById('currentTeacherDisplay').textContent='👤 '+currentTeacher;
   await loadSavedData();
 }
+function parseDate(dateVal){
+  let d;
+  if(typeof dateVal==='number'){
+    d=new Date(dateVal);
+  }else{
+    d=new Date(dateVal);
+  }
+  return new Date(d.getFullYear(),d.getMonth(),d.getDate());
+}
 async function loadSavedData(){
   showLoading(true);
   try{
@@ -246,51 +255,41 @@ async function loadSavedData(){
     lastWeekSlots={};
     if(d.code===0&&d.data.items.length>0){
       d.data.items.forEach(item=>{
-        const date=item.fields['日期'];
+        const dateRaw=item.fields['日期'];
         const slot=item.fields['时段'];
         const status=item.fields['状态']||'可排课';
-        const dayIdx=getDayIndex(date);
         const slotIdx=timeSlots.indexOf(slot);
-        if(dayIdx>=0&&slotIdx>=0){
-          const el=document.querySelector(".time-slot[data-day='"+dayIdx+"'][data-slot='"+slotIdx+"']");
-          if(el){
-            if(status==='已排课'){
-              el.classList.add('scheduled');
-            }else{
-              el.classList.add('available');
+        const itemDate=parseDate(dateRaw);
+        const weekStart=new Date(currentWeekStart.getFullYear(),currentWeekStart.getMonth(),currentWeekStart.getDate());
+        for(let i=0;i<7;i++){
+          const checkDate=new Date(weekStart);
+          checkDate.setDate(checkDate.getDate()+i);
+          if(itemDate.getTime()===checkDate.getTime()){
+            const el=document.querySelector(".time-slot[data-day='"+i+"'][data-slot='"+slotIdx+"']");
+            if(el){
+              if(status==='已排课'){
+                el.classList.add('scheduled');
+              }else{
+                el.classList.add('available');
+              }
             }
+            break;
           }
         }
-        const lastWeekStart=new Date(currentWeekStart);
+        const lastWeekStart=new Date(weekStart);
         lastWeekStart.setDate(lastWeekStart.getDate()-7);
-        const lastWeekEnd=new Date(lastWeekStart);
-        lastWeekEnd.setDate(lastWeekEnd.getDate()+7);
-        let dVal=typeof date==='number'?new Date(date):new Date(date);
-        if(dVal>=lastWeekStart&&dVal<lastWeekEnd){
-          const dIdx=Math.floor((dVal-lastWeekStart)/(1000*60*60*24));
-          if(dIdx>=0&&dIdx<7){
-            lastWeekSlots[dIdx+'-'+slotIdx]=status;
+        for(let i=0;i<7;i++){
+          const checkDate=new Date(lastWeekStart);
+          checkDate.setDate(checkDate.getDate()+i);
+          if(itemDate.getTime()===checkDate.getTime()){
+            lastWeekSlots[i+'-'+slotIdx]=status;
+            break;
           }
         }
       });
     }
-  }catch(e){}
+  }catch(e){console.error('loadSavedData error:',e);}
   showLoading(false);
-}
-function getDayIndex(dateVal){
-  let d;
-  if(typeof dateVal==='number'){
-    d=new Date(dateVal);
-  }else{
-    d=new Date(dateVal);
-  }
-  const weekStart=new Date(currentWeekStart);
-  for(let i=0;i<7;i++){
-    const dd=new Date(weekStart);
-    dd.setDate(dd.getDate()+i);
-    if(d.getFullYear()===dd.getFullYear()&&d.getMonth()===dd.getMonth()&&d.getDate()===dd.getDate())return i;
-  }
-  return -1;
 }
 async function submitData(){
   showLoading(true);
@@ -298,16 +297,16 @@ async function submitData(){
   document.querySelectorAll('.time-slot.available').forEach(el=>{
     const day=parseInt(el.dataset.day);
     const slotIdx=parseInt(el.dataset.slot);
-    const date=new Date(currentWeekStart);
+    const date=new Date(currentWeekStart.getFullYear(),currentWeekStart.getMonth(),currentWeekStart.getDate());
     date.setDate(date.getDate()+day);
-    records.push({fields:{'老师姓名':currentTeacher,'日期':formatFullDate(date),'时段':timeSlots[slotIdx],'状态':'可排课'}});
+    records.push({fields:{'老师姓名':currentTeacher,'日期':date.getTime(),'时段':timeSlots[slotIdx],'状态':'可排课'}});
   });
   document.querySelectorAll('.time-slot.scheduled').forEach(el=>{
     const day=parseInt(el.dataset.day);
     const slotIdx=parseInt(el.dataset.slot);
-    const date=new Date(currentWeekStart);
+    const date=new Date(currentWeekStart.getFullYear(),currentWeekStart.getMonth(),currentWeekStart.getDate());
     date.setDate(date.getDate()+day);
-    records.push({fields:{'老师姓名':currentTeacher,'日期':formatFullDate(date),'时段':timeSlots[slotIdx],'状态':'已排课'}});
+    records.push({fields:{'老师姓名':currentTeacher,'日期':date.getTime(),'时段':timeSlots[slotIdx],'状态':'已排课'}});
   });
   try{
     const r=await fetch(API_BASE+'/api/schedule',{
@@ -326,20 +325,26 @@ async function submitData(){
   }
   showLoading(false);
 }
-function getMonday(d){const n=new Date(d),day=n.getDay();n.setDate(n.getDate()-(day===0?6:day-1));return n;}
+function getMonday(d){
+  const n=new Date(d);
+  const day=n.getDay();
+  n.setDate(n.getDate()-(day===0?6:day-1));
+  return new Date(n.getFullYear(),n.getMonth(),n.getDate());
+}
 function formatDate(d){return(d.getMonth()+1)+"/"+d.getDate();}
 function formatFullDate(d){return d.getTime();}
 function updateWeekDisplay(){
-  const end=new Date(currentWeekStart);
+  const end=new Date(currentWeekStart.getFullYear(),currentWeekStart.getMonth(),currentWeekStart.getDate());
   end.setDate(end.getDate()+6);
   document.getElementById('weekDisplay').textContent=currentWeekStart.getFullYear()+"年"+(currentWeekStart.getMonth()+1)+"月"+currentWeekStart.getDate()+"日 ~ "+(end.getMonth()+1)+"月"+end.getDate()+"日";
   document.querySelectorAll('.date-label').forEach((el,i)=>{
-    const d=new Date(currentWeekStart);
+    const d=new Date(currentWeekStart.getFullYear(),currentWeekStart.getMonth(),currentWeekStart.getDate());
     d.setDate(d.getDate()+i);
     el.textContent="("+formatDate(d)+")";
   });
 }
 function changeWeek(delta){
+  currentWeekStart=new Date(currentWeekStart.getFullYear(),currentWeekStart.getMonth(),currentWeekStart.getDate());
   currentWeekStart.setDate(currentWeekStart.getDate()+delta*7);
   updateWeekDisplay();
   loadSavedData();
