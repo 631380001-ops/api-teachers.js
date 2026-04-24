@@ -53,14 +53,15 @@ td:first-child{background:#fafafa;font-weight:500;color:#666;position:sticky;lef
 .day-action-btn{font-size:10px;padding:1px 6px;border:none;border-radius:3px;cursor:pointer;background:#e8e8e8;color:#666;}
 .day-action-btn.select-all:hover{background:#b7eb8f;color:#389e0d;}
 .day-action-btn.deselect-all:hover{background:#ffa39e;color:#cf1322;}
+.time-group{background:#e6e6fa;color:#5a5a8a;font-weight:600;padding:8px 4px;}
+.time-group td:first-child{background:#e6e6fa;}
 .legend{display:flex;justify-content:center;gap:20px;padding:12px;background:#f8f9fa;border-top:1px solid #e8e8e8;flex-wrap:wrap;}
 .legend-item{display:flex;align-items:center;gap:8px;font-size:13px;color:#666;}
 .legend-color{width:20px;height:20px;border-radius:4px;}
 .legend-color.green{background:#52c41a;}
 .legend-color.red{background:#ff4d4f;}
 .legend-color.gray{background:#f0f0f0;border:1px solid #ddd;}
-.toast{position:fixed;top:20px;right
-:20px;background:#52c41a;color:white;padding:15px 25px;border-radius:8px;transform:translateX(150%);transition:transform 0.3s;z-index:1001;}
+.toast{position:fixed;top:20px;right:20px;background:#52c41a;color:white;padding:15px 25px;border-radius:8px;transform:translateX(150%);transition:transform 0.3s;z-index:1001;}
 .toast.show{transform:translateX(0);}
 .toast.error{background:#ff4d4f;}
 .tip{background:#e6f7ff;border:1px solid #91d5ff;padding:10px 15px;margin:0 15px;border-radius:6px;font-size:13px;color:#0050b3;}
@@ -135,7 +136,6 @@ td:first-child{background:#fafafa;font-weight:500;color:#666;position:sticky;lef
 </div>
 </div>
 <div class="toast" id="toast"></div>
-
 <script>
 const API_BASE = window.location.origin;
 const timeSlots=[];
@@ -143,6 +143,11 @@ for(let h=8;h<22;h++){
   timeSlots.push(h.toString().padStart(2,'0')+":00-"+h.toString().padStart(2,'0')+":30");
   timeSlots.push(h.toString().padStart(2,'0')+":30-"+(h+1).toString().padStart(2,'0')+":00");
 }
+const timeGroups=[
+  {name:"☀️ 上午",start:0,end:7},
+  {name:"🌤️ 下午",start:8,end:19},
+  {name:"🌙 晚上",start:20,end:27}
+];
 let currentTeacher=null,currentWeekStart=getMonday(new Date());
 let teachersData={},currentTeacherRecordId=null;
 let isDragging=false,dragMode=null,draggedSlots=new Set();
@@ -257,8 +262,13 @@ async function loadSavedData(){
   }catch(e){}
   showLoading(false);
 }
-function getDayIndex(dateStr){
-  const d=new Date(dateStr);
+function getDayIndex(dateVal){
+  let d;
+  if(typeof dateVal==='number'){
+    d=new Date(dateVal);
+  }else{
+    d=new Date(dateVal);
+  }
   const weekStart=new Date(currentWeekStart);
   for(let i=0;i<7;i++){
     const dd=new Date(weekStart);
@@ -303,7 +313,7 @@ async function submitData(){
 }
 function getMonday(d){const n=new Date(d),day=n.getDay();n.setDate(n.getDate()-(day===0?6:day-1));return n;}
 function formatDate(d){return(d.getMonth()+1)+"/"+d.getDate();}
-function formatFullDate(d){return d.getFullYear()+"-"+(d.getMonth()+1).toString().padStart(2,'0')+"-"+d.getDate().toString().padStart(2,'0');}
+function formatFullDate(d){return d.getTime();}
 function updateWeekDisplay(){
   const end=new Date(currentWeekStart);
   end.setDate(end.getDate()+6);
@@ -329,10 +339,16 @@ function showToast(msg,isErr=false){
 function renderSchedule(){
   const tb=document.getElementById('scheduleBody');
   tb.innerHTML='';
-  timeSlots.forEach((slot,si)=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML="<td>"+slot+"</td>"+Array(7).fill(0).map((_,d)=>"<td><div class='time-slot' data-day='"+d+"' data-slot='"+si+"'></div></td>").join('');
-    tb.appendChild(tr);
+  timeGroups.forEach(group=>{
+    const groupTr=document.createElement('tr');
+    groupTr.className='time-group';
+    groupTr.innerHTML='<td colspan="8">'+group.name+'</td>';
+    tb.appendChild(groupTr);
+    for(let si=group.start;si<=group.end;si++){
+      const tr=document.createElement('tr');
+      tr.innerHTML="<td>"+timeSlots[si]+"</td>"+Array(7).fill(0).map((_,d)=>"<td><div class='time-slot' data-day='"+d+"' data-slot='"+si+"'></div></td>").join('');
+      tb.appendChild(tr);
+    }
   });
   document.querySelectorAll('.time-slot').forEach(el=>{
     el.addEventListener('click',()=>toggleSlot(el));
