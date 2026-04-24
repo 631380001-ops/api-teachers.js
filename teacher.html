@@ -33,8 +33,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .week-nav{display:flex;justify-content:center;align-items:center;padding:15px 20px;background:#f8f9fa;gap:15px;flex-wrap:wrap;}
 .week-nav button{background:white;border:1px solid #ddd;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;}
 .week-nav span{font-size:16px;font-weight:600;color:#333;}
-.quick-actions{display:flex;gap:8px;margin-left:auto;}
+.quick-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
 .quick-btn{background:#e8f4fd;color:#1890ff;border:1px solid #91d5ff;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;}
+.quick-btn.warning{background:#fffbe6;color:#faad14;border-color:#ffe58f;}
 .quick-btn.danger{background:#fff1f0;color:#ff4d4f;border-color:#ffa39e;}
 .schedule-grid{padding:15px;overflow-x:auto;}
 table{width:100%;border-collapse:collapse;}
@@ -95,7 +96,8 @@ td:first-child{background:#fafafa;font-weight:500;color:#666;position:sticky;lef
 <span id="weekDisplay"></span>
 <button onclick="changeWeek(1)">下周 ▶</button>
 <div class="quick-actions">
-<button class="quick-btn" onclick="clearWeek()">✗ 清空本周</button>
+<button class="quick-btn warning" onclick="copyFromLastWeek()">📋 复制上周</button>
+<button class="quick-btn danger" onclick="clearWeek()">✗ 清空本周</button>
 </div>
 </div>
 <div class="tip">💡 提示：点击切换状态 → 空白 → 绿色(可排课) → 红色(已排课) → 空白 | 支持拖拽批量选择</div>
@@ -151,6 +153,7 @@ const timeGroups=[
 let currentTeacher=null,currentWeekStart=getMonday(new Date());
 let teachersData={},currentTeacherRecordId=null;
 let isDragging=false,dragMode=null,draggedSlots=new Set();
+let lastWeekSlots={};
 document.addEventListener('DOMContentLoaded',async()=>{
   await loadTeachersFromAPI();
   renderSchedule();
@@ -240,6 +243,7 @@ async function loadSavedData(){
     document.querySelectorAll('.time-slot').forEach(el=>{
       el.classList.remove('available','scheduled');
     });
+    lastWeekSlots={};
     if(d.code===0&&d.data.items.length>0){
       d.data.items.forEach(item=>{
         const date=item.fields['日期'];
@@ -255,6 +259,17 @@ async function loadSavedData(){
             }else{
               el.classList.add('available');
             }
+          }
+        }
+        const lastWeekStart=new Date(currentWeekStart);
+        lastWeekStart.setDate(lastWeekStart.getDate()-7);
+        const lastWeekEnd=new Date(lastWeekStart);
+        lastWeekEnd.setDate(lastWeekEnd.getDate()+7);
+        let dVal=typeof date==='number'?new Date(date):new Date(date);
+        if(dVal>=lastWeekStart&&dVal<lastWeekEnd){
+          const dIdx=Math.floor((dVal-lastWeekStart)/(1000*60*60*24));
+          if(dIdx>=0&&dIdx<7){
+            lastWeekSlots[dIdx+'-'+slotIdx]=status;
           }
         }
       });
@@ -421,6 +436,30 @@ function deselectDay(d){
 }
 function clearWeek(){
   if(confirm('确定清空本周？'))document.querySelectorAll('.time-slot').forEach(el=>el.classList.remove('available','scheduled'));
+}
+function copyFromLastWeek(){
+  const keys=Object.keys(lastWeekSlots);
+  if(keys.length===0){
+    showToast('上周没有排课记录',true);
+    return;
+  }
+  if(!confirm('确定复制上周的排课时间到本周？\n（会覆盖本周已有的选择）'))return;
+  document.querySelectorAll('.time-slot').forEach(el=>{
+    el.classList.remove('available','scheduled');
+  });
+  keys.forEach(key=>{
+    const[d,s]=key.split('-');
+    const el=document.querySelector(".time-slot[data-day='"+d+"'][data-slot='"+s+"']");
+    if(el){
+      const status=lastWeekSlots[key];
+      if(status==='已排课'){
+        el.classList.add('scheduled');
+      }else{
+        el.classList.add('available');
+      }
+    }
+  });
+  showToast('已复制上周排课时间！');
 }
 </script>
 </body>
