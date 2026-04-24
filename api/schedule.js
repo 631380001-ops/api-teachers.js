@@ -47,6 +47,7 @@ exports.handler = async (event, context) => {
             },
             body: JSON.stringify({
               filter: {
+                conjunction: 'and',
                 conditions: [{
                   field_name: '老师姓名',
                   operator: 'is',
@@ -82,6 +83,7 @@ exports.handler = async (event, context) => {
           },
           body: JSON.stringify({
             filter: {
+              conjunction: 'and',
               conditions: [{
                 field_name: '老师姓名',
                 operator: 'is',
