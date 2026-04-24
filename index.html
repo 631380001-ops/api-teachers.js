@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>管理员控制台 - 老师排课管理</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -49,6 +50,8 @@ th{background:#fafafa;font-weight:600;}
 .legend-color.green{background:#52c41a;}
 .legend-color.red{background:#ff4d4f;}
 .legend-color.gray{background:#f0f0f0;border:1px solid #ddd;}
+.time-group{background:#e6e6fa;color:#5a5a8a;font-weight:600;text-align:center;}
+.time-group td{padding:8px;border:1px solid #d8d8e8;}
 </style>
 </head>
 <body>
@@ -117,6 +120,11 @@ for(let h=8;h<22;h++){
   timeSlots.push(h.toString().padStart(2,'0')+":00-"+h.toString().padStart(2,'0')+":30");
   timeSlots.push(h.toString().padStart(2,'0')+":30-"+(h+1).toString().padStart(2,'0')+":00");
 }
+const timeGroups=[
+  {name:"☀️ 上午",start:0,end:7},
+  {name:"🌤️ 下午",start:8,end:19},
+  {name:"🌙 晚上",start:20,end:27}
+];
 let teachers=[],allRecords=[],currentView='date';
 document.addEventListener('DOMContentLoaded',async()=>{
   const today=new Date();
@@ -277,23 +285,27 @@ function loadByDate(){
     const key=r.teacher+'-'+r.slot;
     teacherSlots[key]=r.status;
   });
-  timeSlots.forEach(slot=>{
-    html+="<tr><td>"+slot+"</td>";
-    teachers.forEach(t=>{
-      const key=t+'-'+slot;
-      const status=teacherSlots[key];
-      let cellClass='cell-empty';
-      let cellText='';
-      if(status==='可排课'){
-        cellClass='cell-available';
-        cellText='✓';
-      }else if(status==='已排课'){
-        cellClass='cell-scheduled';
-        cellText='✓';
-      }
-      html+="<td class='"+cellClass+"' onclick=\"toggleCell('"+t+"','"+date+"','"+slot+"','"+status+"')\">"+cellText+"</td>";
-    });
-    html+="</tr>";
+  timeGroups.forEach(group=>{
+    html+="<tr class='time-group'><td colspan='"+(teachers.length+1)+"'>"+group.name+"</td></tr>";
+    for(let si=group.start;si<=group.end;si++){
+      const slot=timeSlots[si];
+      html+="<tr><td>"+slot+"</td>";
+      teachers.forEach(t=>{
+        const key=t+'-'+slot;
+        const status=teacherSlots[key];
+        let cellClass='cell-empty';
+        let cellText='';
+        if(status==='可排课'){
+          cellClass='cell-available';
+          cellText='✓';
+        }else if(status==='已排课'){
+          cellClass='cell-scheduled';
+          cellText='✓';
+        }
+        html+="<td class='"+cellClass+"' onclick=\"toggleCell('"+t+"','"+date+"','"+slot+"','"+status+"')\">"+cellText+"</td>";
+      });
+      html+="</tr>";
+    }
   });
   html+="</table>";
   container.innerHTML=html;
@@ -314,7 +326,7 @@ function loadByTeacher(){
   we.setDate(we.getDate()+7);
   const records=allRecords.filter(r=>{
     if(r.teacher!==teacher)return false;
-    const d=new Date(r.date);
+    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
     return d>=ws&&d<we;
   });
   const container=document.getElementById('scheduleTable');
@@ -324,32 +336,36 @@ function loadByTeacher(){
   html+="</tr>";
   const daySlots={};
   records.forEach(r=>{
-    const d=new Date(r.date);
+    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
     const dayIdx=Math.floor((d-ws)/(1000*60*60*24));
     if(dayIdx>=0&&dayIdx<7){
       const key=dayIdx+'-'+r.slot;
       daySlots[key]=r.status;
     }
   });
-  timeSlots.forEach(slot=>{
-    html+="<tr><td>"+slot+"</td>";
-    for(let d=0;d<7;d++){
-      const key=d+'-'+slot;
-      const status=daySlots[key];
-      let cellClass='cell-empty';
-      let cellText='';
-      if(status==='可排课'){
-        cellClass='cell-available';
-        cellText='✓';
-      }else if(status==='已排课'){
-        cellClass='cell-scheduled';
-        cellText='✓';
+  timeGroups.forEach(group=>{
+    html+="<tr class='time-group'><td colspan='8'>"+group.name+"</td></tr>";
+    for(let si=group.start;si<=group.end;si++){
+      const slot=timeSlots[si];
+      html+="<tr><td>"+slot+"</td>";
+      for(let d=0;d<7;d++){
+        const key=d+'-'+slot;
+        const status=daySlots[key];
+        let cellClass='cell-empty';
+        let cellText='';
+        if(status==='可排课'){
+          cellClass='cell-available';
+          cellText='✓';
+        }else if(status==='已排课'){
+          cellClass='cell-scheduled';
+          cellText='✓';
+        }
+        const cellDate=new Date(ws);
+        cellDate.setDate(cellDate.getDate()+d);
+        html+="<td class='"+cellClass+"' onclick=\"toggleCell('"+teacher+"','"+formatDateInput(cellDate)+"','"+slot+"','"+status+"')\">"+cellText+"</td>";
       }
-      const cellDate=new Date(ws);
-      cellDate.setDate(cellDate.getDate()+d);
-      html+="<td class='"+cellClass+"' onclick=\"toggleCell('"+teacher+"','"+cellDate.toISOString().split('T')[0]+"','"+slot+"','"+status+"')\">"+cellText+"</td>";
+      html+="</tr>";
     }
-    html+="</tr>";
   });
   html+="</table>";
   container.innerHTML=html;
@@ -363,7 +379,7 @@ function loadByWeek(){
   const we=new Date(ws);
   we.setDate(we.getDate()+7);
   const records=allRecords.filter(r=>{
-    const d=new Date(r.date);
+    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
     return d>=ws&&d<we;
   });
   const container=document.getElementById('scheduleTable');
@@ -375,7 +391,7 @@ function loadByWeek(){
   records.forEach(r=>{
     const t=r.teacher;
     if(!teacherCounts[t])teacherCounts[t]={available:[0,0,0,0,0,0,0],scheduled:[0,0,0,0,0,0,0]};
-    const d=new Date(r.date);
+    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
     const dayIdx=Math.floor((d-ws)/(1000*60*60*24));
     if(dayIdx>=0&&dayIdx<7){
       if(r.status==='已排课'){
