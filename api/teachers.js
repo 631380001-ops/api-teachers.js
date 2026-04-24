@@ -1,9 +1,9 @@
 const FEISHU_CONFIG = {
   APP_ID: 'cli_a96321aea4b85ceb',
   APP_SECRET: '0ylNJgCwouaq6zpb4OR2pgj6yrFq0rTZ',
-  APP_TOKEN: 'CDJ6b1EOeavDL9sqG8Gcn7C3nhb',
-  SCHEDULE_TABLE: 'tblyFnRWHFwibyHq',
-  TEACHER_TABLE: 'tblzc6aj4asytUGn'
+  APP_TOKEN: 'Z4TxbYerbavEjisDmRAc8AVxnAf',
+  SCHEDULE_TABLE: 'tblYA5iBJMk1fCKq',
+  TEACHER_TABLE: 'tbljnjwN5AAO5PZA'
 };
 
 async function getFeishuToken() {
