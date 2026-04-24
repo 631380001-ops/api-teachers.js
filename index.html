@@ -116,7 +116,10 @@ th{background:#fafafa;font-weight:600;}
 <div id="teacherControls" style="display:none;">
 <label>选择老师：</label>
 <select id="selectedTeacher" onchange="loadViewData()"><option value="">请选择</option></select>
-<select id="selectedWeek" onchange="loadViewData()"></select>
+<div class="date-input-wrap">
+<div class="date-input-btn" id="teacherWeekPickerBtn" onclick="toggleTeacherWeekCalendar()">📅 点击选择周次</div>
+<div class="calendar-picker" id="teacherWeekCalendar"></div>
+</div>
 </div>
 <div id="weekControls" style="display:none;">
 <label>选择周次：</label>
@@ -146,17 +149,20 @@ const timeGroups=[
 ];
 let teachers=[],allRecords=[],currentView='date';
 let weekCalendarDate=new Date();
+let teacherWeekCalendarDate=new Date();
 let selectedWeekStart=getMonday(new Date());
+let selectedTeacherWeekStart=getMonday(new Date());
 document.addEventListener('DOMContentLoaded',async()=>{
   const today=new Date();
   document.getElementById('selectedDate').value=formatDateInput(today);
   await Promise.all([loadTeachersFromAPI(),loadAllRecords()]);
-  initWeekSelect();
   updateWeekPickerBtn();
+  updateTeacherWeekPickerBtn();
   loadViewData();
   document.addEventListener('click',function(e){
     if(!e.target.closest('.date-input-wrap')){
       document.getElementById('weekCalendar').classList.remove('show');
+      document.getElementById('teacherWeekCalendar').classList.remove('show');
     }
   });
 });
@@ -173,31 +179,65 @@ function formatDateFromFeishu(dateVal){
 }
 function toggleWeekCalendar(){
   const cal=document.getElementById('weekCalendar');
+  document.getElementById('teacherWeekCalendar').classList.remove('show');
   cal.classList.toggle('show');
   if(cal.classList.contains('show')){
+    weekCalendarDate=new Date(selectedWeekStart);
     renderWeekCalendar();
   }
 }
+function toggleTeacherWeekCalendar(){
+  const cal=document.getElementById('teacherWeekCalendar');
+  document.getElementById('weekCalendar').classList.remove('show');
+  cal.classList.toggle('show');
+  if(cal.classList.contains('show')){
+    teacherWeekCalendarDate=new Date(selectedTeacherWeekStart);
+    renderTeacherWeekCalendar();
+  }
+}
 function renderWeekCalendar(){
-  const cal=document.getElementById('weekCalendar');
-  const year=weekCalendarDate.getFullYear();
-  const month=weekCalendarDate.getMonth();
+  renderCalendarGeneric('weekCalendar',weekCalendarDate,selectedWeekStart,function(ts){
+    selectedWeekStart=getMonday(new Date(ts));
+    updateWeekPickerBtn();
+    document.getElementById('weekCalendar').classList.remove('show');
+    loadViewData();
+  },function(delta){
+    weekCalendarDate.setMonth(weekCalendarDate.getMonth()+delta);
+    renderWeekCalendar();
+  });
+}
+function renderTeacherWeekCalendar(){
+  renderCalendarGeneric('teacherWeekCalendar',teacherWeekCalendarDate,selectedTeacherWeekStart,function(ts){
+    selectedTeacherWeekStart=getMonday(new Date(ts));
+    updateTeacherWeekPickerBtn();
+    document.getElementById('teacherWeekCalendar').classList.remove('show');
+    loadViewData();
+  },function(delta){
+    teacherWeekCalendarDate.setMonth(teacherWeekCalendarDate.getMonth()+delta);
+    renderTeacherWeekCalendar();
+  });
+}
+function renderCalendarGeneric(calendarId,calendarDate,selectedWeek,callback,onMonthChange){
+  const cal=document.getElementById(calendarId);
+  const year=calendarDate.getFullYear();
+  const month=calendarDate.getMonth();
   const firstDay=new Date(year,month,1);
   const lastDay=new Date(year,month+1,0);
   const startDay=firstDay.getDay()||7;
   let html='<div class="calendar-header">';
-  html+='<button onclick="changeCalendarMonth(-1)">‹</button>';
+  html+='<button onclick="('+onMonthChange.toString()+')(-1)">‹</button>';
   html+='<span>'+year+'年'+(month+1)+'月</span>';
-  html+='<button onclick="changeCalendarMonth(1)">›</button>';
+  html+='<button onclick="('+onMonthChange.toString()+')(1)">›</button>';
   html+='</div>';
   html+='<div class="calendar-grid">';
   html+='<th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th>';
   const today=new Date();
   today.setHours(0,0,0,0);
-  const currentMonthStart=getMonday(new Date(today));
+  let dayCount=0;
   for(let i=1;i<startDay;i++){
-    const prevDate=new Date(year,month,1-startDay+i);
-    html+='<td class="other-month" onclick="selectCalendarDate('+prevDate.getTime()+')">'+prevDate.getDate()+'</td>';
+    const prevDate=new Date(year,month,i-startDay);
+    html+='<td class="other-month" onclick="('+callback.toString()+')('+prevDate.getTime()+')">'+prevDate.getDate()+'</td>';
+    dayCount++;
   }
   for(let d=1;d<=lastDay.getDate();d++){
     const date=new Date(year,month,d);
@@ -205,35 +245,30 @@ function renderWeekCalendar(){
     let cls='';
     if(date.getTime()===today.getTime())cls='today';
     const weekStart=getMonday(date);
-    if(weekStart.getTime()===selectedWeekStart.getTime())cls+=' selected';
-    html+='<td class="'+cls+'" onclick="selectCalendarDate('+date.getTime()+')">'+d+'</td>';
-    if((startDay+d-1)%7===0)html+='';
+    if(weekStart.getTime()===selectedWeek.getTime())cls+=' selected';
+    html+='<td class="'+cls+'" onclick="('+callback.toString()+')('+date.getTime()+')">'+d+'</td>';
+    dayCount++;
+    if(dayCount%7===0)html+='';
   }
-  const totalCells=startDay+lastDay.getDate()-1;
-  const remainingCells=(7-(totalCells%7))%7;
+  const remainingCells=(7-(dayCount%7))%7;
   for(let i=1;i<=remainingCells;i++){
     const nextDate=new Date(year,month+1,i);
-    html+='<td class="other-month" onclick="selectCalendarDate('+nextDate.getTime()+')">'+nextDate+'</td>';
+    html+='<td class="other-month" onclick="('+callback.toString()+')('+nextDate.getTime()+')">'+i+'</td>';
   }
   html+='</div>';
   cal.innerHTML=html;
-}
-function changeCalendarMonth(delta){
-  weekCalendarDate.setMonth(weekCalendarDate.getMonth()+delta);
-  renderWeekCalendar();
-}
-function selectCalendarDate(timestamp){
-  const date=new Date(timestamp);
-  selectedWeekStart=getMonday(date);
-  updateWeekPickerBtn();
-  document.getElementById('weekCalendar').classList.remove('show');
-  loadViewData();
 }
 function updateWeekPickerBtn(){
   const end=new Date(selectedWeekStart);
   end.setDate(end.getDate()+6);
   const text='📅 '+(selectedWeekStart.getMonth()+1)+'/'+selectedWeekStart.getDate()+' - '+(end.getMonth()+1)+'/'+end.getDate();
   document.getElementById('weekPickerBtn').textContent=text;
+}
+function updateTeacherWeekPickerBtn(){
+  const end=new Date(selectedTeacherWeekStart);
+  end.setDate(end.getDate()+6);
+  const text='📅 '+(selectedTeacherWeekStart.getMonth()+1)+'/'+selectedTeacherWeekStart.getDate()+' - '+(end.getMonth()+1)+'/'+end.getDate();
+  document.getElementById('teacherWeekPickerBtn').textContent=text;
 }
 async function loadTeachersFromAPI(){
   try{
@@ -278,20 +313,6 @@ async function loadAllRecords(){
       document.getElementById('viewStatus').style.display='none';
     }
   }catch(e){}
-}
-function initWeekSelect(){
-  const today=new Date();
-  const sel2=document.getElementById('selectedWeek');
-  sel2.innerHTML='';
-  for(let i=-4;i<=4;i++){
-    const monday=getMonday(today);
-    monday.setDate(monday.getDate()+i*7);
-    const end=new Date(monday);
-    end.setDate(end.getDate()+6);
-    const label=(monday.getMonth()+1)+"/"+monday.getDate()+" - "+(end.getMonth()+1)+"/"+end.getDate();
-    const val=formatDateInput(monday);
-    sel2.innerHTML+="<option value='"+val+"'>"+label+"</option>";
-  }
 }
 function switchTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -420,9 +441,10 @@ function loadByDate(){
 }
 function loadByTeacher(){
   const teacher=document.getElementById('selectedTeacher').value;
-  const weekStart=document.getElementById('selectedWeek').value;
+  const weekStart=formatDateInput(selectedTeacherWeekStart);
   if(!teacher){
     document.getElementById('scheduleTable').innerHTML="<p style='color:#999;padding:20px;'>请选择老师</p>";
+    document.getElementById('stats').innerHTML='';
     return;
   }
   const ws=new Date(weekStart);
