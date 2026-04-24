@@ -19,6 +19,17 @@ async function getFeishuToken() {
   return data.code === 0 ? data.tenant_access_token : null;
 }
 
+function getWeekRange(dateStr) {
+  const d = new Date(dateStr);
+  const day = d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 7);
+  return { start: monday.getTime(), end: sunday.getTime() };
+}
+
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -71,9 +82,10 @@ exports.handler = async (event, context) => {
       }
     } else if (event.httpMethod === 'POST') {
       const body = JSON.parse(event.body || '{}');
-      const { teacher, records } = body;
+      const { teacher, records, weekStart } = body;
       
-      const oldResponse = await fetch(
+      // 获取该老师所有记录
+      const allRecordsResponse = await fetch(
         `https://open.feishu.cn/open-apis/bitable/v1/apps/${FEISHU_CONFIG.APP_TOKEN}/tables/${FEISHU_CONFIG.SCHEDULE_TABLE}/records/search`,
         {
           method: 'POST',
@@ -93,24 +105,48 @@ exports.handler = async (event, context) => {
           })
         }
       );
-      const oldData = await oldResponse.json();
+      const allRecordsData = await allRecordsResponse.json();
       
-      if (oldData.code === 0 && oldData.data.items.length > 0) {
-        await fetch(
-          `https://open.feishu.cn/open-apis/bitable/v1/apps/${FEISHU_CONFIG.APP_TOKEN}/tables/${FEISHU_CONFIG.SCHEDULE_TABLE}/records/batch_delete`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              records: oldData.data.items.map(i => i.record_id)
-            })
-          }
-        );
+      // 计算当前周的时间范围
+      let weekStartTime, weekEndTime;
+      if (weekStart) {
+        const ws = new Date(weekStart);
+        weekStartTime = ws.getTime();
+        const we = new Date(ws);
+        we.setDate(we.getDate() + 7);
+        weekEndTime = we.getTime();
+      } else if (records && records.length > 0) {
+        const firstDate = records[0].fields['日期'];
+        const weekRange = getWeekRange(firstDate);
+        weekStartTime = weekRange.start;
+        weekEndTime = weekRange.end;
       }
       
+      // 只删除当前周的记录
+      if (allRecordsData.code === 0 && allRecordsData.data.items.length > 0 && weekStartTime) {
+        const recordsToDelete = allRecordsData.data.items.filter(item => {
+          const itemDate = item.fields['日期'];
+          return itemDate >= weekStartTime && itemDate < weekEndTime;
+        });
+        
+        if (recordsToDelete.length > 0) {
+          await fetch(
+            `https://open.feishu.cn/open-apis/bitable/v1/apps/${FEISHU_CONFIG.APP_TOKEN}/tables/${FEISHU_CONFIG.SCHEDULE_TABLE}/records/batch_delete`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                records: recordsToDelete.map(i => i.record_id)
+              })
+            }
+          );
+        }
+      }
+      
+      // 创建新记录
       if (records && records.length > 0) {
         const response = await fetch(
           `https://open.feishu.cn/open-apis/bitable/v1/apps/${FEISHU_CONFIG.APP_TOKEN}/tables/${FEISHU_CONFIG.SCHEDULE_TABLE}/records/batch_create`,
