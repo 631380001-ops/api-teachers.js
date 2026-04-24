@@ -52,6 +52,22 @@ th{background:#fafafa;font-weight:600;}
 .legend-color.gray{background:#f0f0f0;border:1px solid #ddd;}
 .time-group{background:#e6e6fa;color:#5a5a8a;font-weight:600;text-align:center;}
 .time-group td{padding:8px;border:1px solid #d8d8e8;}
+.calendar-picker{display:none;position:absolute;background:white;border:1px solid #e8e8e8;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:15px;z-index:100;width:280px;}
+.calendar-picker.show{display:block;}
+.calendar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.calendar-header button{background:none;border:none;font-size:18px;cursor:pointer;padding:5px 10px;color:#666;}
+.calendar-header button:hover{color:#1890ff;}
+.calendar-header span{font-weight:600;font-size:15px;}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;}
+.calendar-grid th{background:none;padding:8px 0;font-size:12px;color:#999;font-weight:normal;}
+.calendar-grid td{padding:8px 0;cursor:pointer;border-radius:4px;font-size:13px;}
+.calendar-grid td:hover{background:#e6f7ff;}
+.calendar-grid td.selected{background:#1890ff;color:white;}
+.calendar-grid td.today{border:2px solid #1890ff;}
+.calendar-grid td.other-month{color:#ccc;}
+.date-input-wrap{position:relative;display:inline-block;}
+.date-input-btn{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;cursor:pointer;background:white;min-width:200px;text-align:center;}
+.date-input-btn:hover{border-color:#1890ff;}
 </style>
 </head>
 <body>
@@ -104,7 +120,10 @@ th{background:#fafafa;font-weight:600;}
 </div>
 <div id="weekControls" style="display:none;">
 <label>选择周次：</label>
-<select id="weekSelect" onchange="loadViewData()"></select>
+<div class="date-input-wrap">
+<div class="date-input-btn" id="weekPickerBtn" onclick="toggleWeekCalendar()">📅 点击选择日期</div>
+<div class="calendar-picker" id="weekCalendar"></div>
+</div>
 </div>
 </div>
 <div id="stats" class="stats"></div>
@@ -126,13 +145,96 @@ const timeGroups=[
   {name:"🌙 晚上",start:20,end:27}
 ];
 let teachers=[],allRecords=[],currentView='date';
+let weekCalendarDate=new Date();
+let selectedWeekStart=getMonday(new Date());
 document.addEventListener('DOMContentLoaded',async()=>{
   const today=new Date();
   document.getElementById('selectedDate').value=formatDateInput(today);
   await Promise.all([loadTeachersFromAPI(),loadAllRecords()]);
   initWeekSelect();
+  updateWeekPickerBtn();
   loadViewData();
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('.date-input-wrap')){
+      document.getElementById('weekCalendar').classList.remove('show');
+    }
+  });
 });
+function formatDateFromFeishu(dateVal){
+  if(!dateVal)return '';
+  let d;
+  if(typeof dateVal==='number'){
+    d=new Date(dateVal);
+  }else{
+    d=new Date(dateVal);
+  }
+  if(isNaN(d.getTime()))return '';
+  return formatDateInput(d);
+}
+function toggleWeekCalendar(){
+  const cal=document.getElementById('weekCalendar');
+  cal.classList.toggle('show');
+  if(cal.classList.contains('show')){
+    renderWeekCalendar();
+  }
+}
+function renderWeekCalendar(){
+  const cal=document.getElementById('weekCalendar');
+  const year=weekCalendarDate.getFullYear();
+  const month=weekCalendarDate.getMonth();
+  const firstDay=new Date(year,month,1);
+  const lastDay=new Date(year,month+1,0);
+  const startDay=firstDay.getDay()||7;
+  let html='<div class="calendar-header">';
+  html+='<button onclick="changeCalendarMonth(-1)">‹</button>';
+  html+='<span>'+year+'年'+(month+1)+'月</span>';
+  html+='<button onclick="changeCalendarMonth(1)">›</button>';
+  html+='</div>';
+  html+='<div class="calendar-grid">';
+  html+='<th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th>';
+  const today=new Date();
+  today.setHours(0,0,0,0);
+  const currentMonthStart=getMonday(new Date(today));
+  for(let i=1;i<startDay;i++){
+    const prevDate=new Date(year,month,1-startDay+i);
+    html+='<td class="other-month" onclick="selectCalendarDate('+prevDate.getTime()+')">'+prevDate.getDate()+'</td>';
+  }
+  for(let d=1;d<=lastDay.getDate();d++){
+    const date=new Date(year,month,d);
+    date.setHours(0,0,0,0);
+    let cls='';
+    if(date.getTime()===today.getTime())cls='today';
+    const weekStart=getMonday(date);
+    if(weekStart.getTime()===selectedWeekStart.getTime())cls+=' selected';
+    html+='<td class="'+cls+'" onclick="selectCalendarDate('+date.getTime()+')">'+d+'</td>';
+    if((startDay+d-1)%7===0)html+='';
+  }
+  const totalCells=startDay+lastDay.getDate()-1;
+  const remainingCells=(7-(totalCells%7))%7;
+  for(let i=1;i<=remainingCells;i++){
+    const nextDate=new Date(year,month+1,i);
+    html+='<td class="other-month" onclick="selectCalendarDate('+nextDate.getTime()+')">'+nextDate+'</td>';
+  }
+  html+='</div>';
+  cal.innerHTML=html;
+}
+function changeCalendarMonth(delta){
+  weekCalendarDate.setMonth(weekCalendarDate.getMonth()+delta);
+  renderWeekCalendar();
+}
+function selectCalendarDate(timestamp){
+  const date=new Date(timestamp);
+  selectedWeekStart=getMonday(date);
+  updateWeekPickerBtn();
+  document.getElementById('weekCalendar').classList.remove('show');
+  loadViewData();
+}
+function updateWeekPickerBtn(){
+  const end=new Date(selectedWeekStart);
+  end.setDate(end.getDate()+6);
+  const text='📅 '+(selectedWeekStart.getMonth()+1)+'/'+selectedWeekStart.getDate()+' - '+(end.getMonth()+1)+'/'+end.getDate();
+  document.getElementById('weekPickerBtn').textContent=text;
+}
 async function loadTeachersFromAPI(){
   try{
     const r=await fetch(API_BASE+'/api/teachers');
@@ -162,21 +264,24 @@ async function loadAllRecords(){
     const r=await fetch(API_BASE+'/api/schedule');
     const d=await r.json();
     if(d.code===0){
-      allRecords=d.data.items.map(item=>({
-        teacher:item.fields['老师姓名'],
-        date:item.fields['日期'],
-        slot:item.fields['时段'],
-        status:item.fields['状态']||'可排课'
-      }));
+      allRecords=d.data.items.map(item=>{
+        let dateVal=item.fields['日期'];
+        let dateStr=formatDateFromFeishu(dateVal);
+        return{
+          teacher:item.fields['老师姓名'],
+          date:dateStr,
+          dateRaw:dateVal,
+          slot:item.fields['时段'],
+          status:item.fields['状态']||'可排课'
+        };
+      });
       document.getElementById('viewStatus').style.display='none';
     }
   }catch(e){}
 }
 function initWeekSelect(){
   const today=new Date();
-  const sel=document.getElementById('weekSelect');
   const sel2=document.getElementById('selectedWeek');
-  sel.innerHTML='';
   sel2.innerHTML='';
   for(let i=-4;i<=4;i++){
     const monday=getMonday(today);
@@ -184,8 +289,7 @@ function initWeekSelect(){
     const end=new Date(monday);
     end.setDate(end.getDate()+6);
     const label=(monday.getMonth()+1)+"/"+monday.getDate()+" - "+(end.getMonth()+1)+"/"+end.getDate();
-    const val=monday.toISOString().split('T')[0];
-    sel.innerHTML+="<option value='"+val+"'>"+label+"</option>";
+    const val=formatDateInput(monday);
     sel2.innerHTML+="<option value='"+val+"'>"+label+"</option>";
   }
 }
@@ -326,7 +430,8 @@ function loadByTeacher(){
   we.setDate(we.getDate()+7);
   const records=allRecords.filter(r=>{
     if(r.teacher!==teacher)return false;
-    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
+    if(!r.date)return false;
+    const d=new Date(r.date);
     return d>=ws&&d<we;
   });
   const container=document.getElementById('scheduleTable');
@@ -336,7 +441,8 @@ function loadByTeacher(){
   html+="</tr>";
   const daySlots={};
   records.forEach(r=>{
-    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
+    if(!r.date)return;
+    const d=new Date(r.date);
     const dayIdx=Math.floor((d-ws)/(1000*60*60*24));
     if(dayIdx>=0&&dayIdx<7){
       const key=dayIdx+'-'+r.slot;
@@ -374,12 +480,12 @@ function loadByTeacher(){
   document.getElementById('stats').innerHTML="<div class='stat-card'><h3>老师</h3><div class='num'>"+teacher+"</div></div><div class='stat-card'><h3>可排课时段</h3><div class='num' style='color:#52c41a'>"+availableCount+"</div></div><div class='stat-card'><h3>已排课时段</h3><div class='num' style='color:#ff4d4f'>"+scheduledCount+"</div></div>";
 }
 function loadByWeek(){
-  const weekStart=document.getElementById('weekSelect').value;
-  const ws=new Date(weekStart);
+  const ws=new Date(selectedWeekStart);
   const we=new Date(ws);
   we.setDate(we.getDate()+7);
   const records=allRecords.filter(r=>{
-    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
+    if(!r.date)return false;
+    const d=new Date(r.date);
     return d>=ws&&d<we;
   });
   const container=document.getElementById('scheduleTable');
@@ -391,7 +497,8 @@ function loadByWeek(){
   records.forEach(r=>{
     const t=r.teacher;
     if(!teacherCounts[t])teacherCounts[t]={available:[0,0,0,0,0,0,0],scheduled:[0,0,0,0,0,0,0]};
-    const d=typeof r.date==='number'?new Date(r.date):new Date(r.date);
+    if(!r.date)return;
+    const d=new Date(r.date);
     const dayIdx=Math.floor((d-ws)/(1000*60*60*24));
     if(dayIdx>=0&&dayIdx<7){
       if(r.status==='已排课'){
@@ -426,7 +533,8 @@ function loadByWeek(){
   const totalAvailable=records.filter(r=>r.status==='可排课').length;
   const totalScheduled=records.filter(r=>r.status==='已排课').length;
   const totalTeachers=new Set(records.map(r=>r.teacher)).size;
-  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>本周日期</h3><div class='num'>"+weekStart+"</div></div><div class='stat-card'><h3>可排课时段</h3><div class='num' style='color:#52c41a'>"+totalAvailable+"</div></div><div class='stat-card'><h3>已排课时段</h3><div class='num' style='color:#ff4d4f'>"+totalScheduled+"</div></div><div class='stat-card'><h3>填报老师数</h3><div class='num'>"+totalTeachers+"</div></div>";
+  const weekLabel=(ws.getMonth()+1)+'/'+ws.getDate()+' - '+(we.getMonth()+1)+'/'+(we.getDate()-1);
+  document.getElementById('stats').innerHTML="<div class='stat-card'><h3>本周日期</h3><div class='num'>"+weekLabel+"</div></div><div class='stat-card'><h3>可排课时段</h3><div class='num' style='color:#52c41a'>"+totalAvailable+"</div></div><div class='stat-card'><h3>已排课时段</h3><div class='num' style='color:#ff4d4f'>"+totalScheduled+"</div></div><div class='stat-card'><h3>填报老师数</h3><div class='num'>"+totalTeachers+"</div></div>";
 }
 async function toggleCell(teacher,date,slot,currentStatus){
   let newStatus='';
@@ -437,13 +545,14 @@ async function toggleCell(teacher,date,slot,currentStatus){
   }else{
     newStatus='';
   }
+  const dateTimestamp=new Date(date).getTime();
   try{
     const r=await fetch(API_BASE+'/api/schedule',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         teacher:teacher,
-        records:newStatus?[{fields:{'老师姓名':teacher,'日期':date,'时段':slot,'状态':newStatus}}]:[]
+        records:newStatus?[{fields:{'老师姓名':teacher,'日期':dateTimestamp,'时段':slot,'状态':newStatus}}]:[]
       })
     });
     const d=await r.json();
@@ -481,7 +590,7 @@ function exportCSV(){
   a.download='排课时间_'+new Date().toISOString().split('T')[0]+'.csv';
   a.click();
 }
-function getMonday(d){const n=new Date(d),day=n.getDay();n.setDate(n.getDate()-(day===0?6:day-1));return n;}
+function getMonday(d){const n=new Date(d),day=n.getDay();n.setDate(n.getDate()-(day===0?6:day-1));n.setHours(0,0,0,0);return n;}
 function formatDateInput(d){return d.getFullYear()+"-"+(d.getMonth()+1).toString().padStart(2,'0')+"-"+d.getDate().toString().padStart(2,'0');}
 </script>
 </body>
